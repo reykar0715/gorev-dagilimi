@@ -24,13 +24,35 @@
     </div>
   </header>
 
-  <div class="storage-banner" role="region" aria-label="Veri Saklama Bilgilendirmesi">
+  <div class="storage-banner" role="region" aria-label="Senkronizasyon ve Bulut Durumu">
     <div class="container storage-banner-inner">
-      <span class="badge badge-info">Yerel Çalışma Modu</span>
-      <p>
-        Bu uygulama tamamen statik olarak çalışır ve hiçbir harici sunucu veya veritabanı kullanmaz.
-        Veriler yalnızca <strong>bu tarayıcıda (localStorage)</strong> saklanır; farklı cihazlar veya tarayıcılar arasında otomatik senkronizasyon yapılmaz.
-      </p>
+      <div class="storage-banner-status">
+        <span id="syncModeBadge" class="badge badge-info">Paylaşımlı Mod</span>
+        <p id="syncModeText">
+          Canlı cihazlar arası eşitleme için Firebase Realtime Database bağlayabilir veya doğrudan <strong>Bağlantıyı Kopyala</strong> butonuyla grubu arkadaşlarınıza gönderebilirsiniz.
+        </p>
+      </div>
+      <button type="button" id="btnToggleCloudConfig" class="btn btn-secondary btn-xs">
+        ⚙️ Canlı Veritabanı (Firebase) Ayarı
+      </button>
+    </div>
+    <div id="cloudConfigPanel" class="container cloud-config-panel hidden">
+      <form id="cloudConfigForm" class="cloud-config-form" novalidate>
+        <div class="cloud-config-row">
+          <label for="cloudDbUrlInput"><strong>Firebase Realtime Database URL:</strong></label>
+          <input
+            type="url"
+            id="cloudDbUrlInput"
+            placeholder="https://proje-adiniz-default-rtdb.europe-west1.firebasedatabase.app"
+            autocomplete="off"
+          />
+          <button type="submit" class="btn btn-primary btn-sm">Bağla ve Eşitle</button>
+          <button type="button" id="btnClearCloudConfig" class="btn btn-danger-outline btn-sm">Bağlantıyı Kes</button>
+        </div>
+        <p class="form-hint">
+          Ücretsiz bir Firebase Realtime Database URL'si girdiğinizde tüm gruplarınız ve görevleriniz buluta eşitlenir; grup kodunu veya bağlantıyı paylaştığınız arkadaşlarınızla <strong>anlık (canlı)</strong> olarak ortak çalışabilirsiniz.
+        </p>
+      </form>
     </div>
   </div>
 
@@ -57,7 +79,7 @@
         <div class="card">
           <div class="card-header">
             <h2>Grup Koduyla Katıl</h2>
-            <p class="text-muted">Bu tarayıcıda oluşturulmuş bir görev grubuna grup kodu ile katılın veya grubu açın.</p>
+            <p class="text-muted">Mevcut bir görev grubuna grup kodu ile katılın veya grubu açın.</p>
           </div>
           <form id="joinByCodeForm" class="form-stack" novalidate>
             <div class="form-group">
@@ -83,7 +105,7 @@
             </div>
             <button type="submit" class="btn btn-primary btn-block">Gruba Git / Katıl</button>
             <p class="form-hint">
-              <strong>Not:</strong> Yalnızca istemci tarafında çalışan bu uygulamada grup kodu ve paylaşım bağlantısı, aynı tarayıcıdaki verilere erişir. Başka cihazlardaki verileri otomatik senkronize etmez.
+              <strong>İpucu:</strong> Firebase veritabanı bağlıyken grup kodunu giren herkes farklı cihazlardan canlı olarak aynı gruba erişebilir.
             </p>
           </form>
         </div>
@@ -93,7 +115,7 @@
           <div class="card-header card-header-flex">
             <div>
               <h2>Mevcut Görev Grupları</h2>
-              <p class="text-muted">Bu tarayıcıda kayıtlı görev gruplarınız</p>
+              <p class="text-muted">Kayıtlı ve eşitlenmiş görev gruplarınız</p>
             </div>
             <span id="groupCountBadge" class="badge badge-neutral">0 Grup</span>
           </div>
@@ -189,10 +211,10 @@
                 <code id="shareCodeText" class="share-code">GRUP-0000</code>
               </div>
               <button type="button" id="btnCopyCode" class="btn btn-secondary btn-xs">Kodu Kopyala</button>
-              <button type="button" id="btnCopyLink" class="btn btn-secondary btn-xs">Bağlantıyı Kopyala</button>
+              <button type="button" id="btnCopyLink" class="btn btn-primary btn-xs">Davet Bağlantısını Kopyala</button>
             </div>
-            <p class="share-disclaimer">
-              ⚠️ Bu bağlantı ve grup kodu yalnızca <strong>aynı tarayıcıdaki</strong> yerel veriler için geçerlidir. Sunucu kullanılmadığı için farklı cihazlar arasında otomatik veri eşitlemesi yapılmaz.
+            <p id="shareDisclaimerText" class="share-disclaimer">
+              🔗 <strong>Davet Bağlantısını Kopyala</strong> butonu ile bu grubu arkadaşlarınıza gönderebilirsiniz.
             </p>
           </div>
         </div>
@@ -200,11 +222,11 @@
         <!-- Yerel Profil / Aktif Kullanıcı Seçimi -->
         <div class="active-user-bar">
           <div class="active-user-info">
-            <label for="activeUserSelect"><strong>Aktif Kullanıcı Görünümü (Yerel Profil):</strong></label>
+            <label for="activeUserSelect"><strong>Aktif Kullanıcı Görünümü:</strong></label>
             <select id="activeUserSelect" class="select-compact"></select>
           </div>
           <span class="active-user-note">
-            Harici kimlik doğrulama sunucusu kullanılmadığından, aynı tarayıcıda oluşturucu veya ekip üyesi perspektifini buradan seçebilirsiniz.
+            Hangi ekip üyesi olarak işlem yaptığınızı veya kendi görevlerinizi filtrelemek için adınızı seçin.
           </span>
         </div>
       </div>

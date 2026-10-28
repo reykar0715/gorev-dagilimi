@@ -144,12 +144,49 @@ body {
 .storage-banner-inner {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.storage-banner-status {
+  display: flex;
+  align-items: center;
   gap: 10px;
   flex-wrap: wrap;
 }
 
 .storage-banner p {
   margin: 0;
+}
+
+.cloud-config-panel {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #93c5fd;
+}
+
+.cloud-config-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.cloud-config-row input {
+  flex: 1;
+  min-width: 260px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+}
+
+.badge-success {
+  background: var(--status-done-bg);
+  color: var(--status-done-text);
+  border: 1px solid var(--status-done-border);
 }
 
 /* Ana İçerik */

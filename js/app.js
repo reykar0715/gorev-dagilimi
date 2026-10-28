@@ -7,6 +7,9 @@
   "use strict";
 
   const STORAGE_KEY = "gorev_dagilimi_store_v1";
+  const CLOUD_URL_STORAGE_KEY = "gorev_dagilimi_cloud_db_url";
+  // İsterseniz Firebase Realtime Database adresinizi doğrudan buraya da yazabilirsiniz:
+  const DEFAULT_CLOUD_DB_URL = "";
   const DATA_VERSION = 1;
   const VALID_STATUSES = ["Bekliyor", "Devam Ediyor", "Tamamlandı"];
 
@@ -17,6 +20,8 @@
     boardViewMode: "table", // 'table' | 'cards'
     filterAssignee: "ALL",
     filterStatus: "ALL",
+    cloudDbUrl: "",
+    liveSyncTimer: null,
   };
 
   // --- YARDIMCI FONKSİYONLAR ---
@@ -155,12 +160,231 @@
     );
   }
 
-  function updateGroup(updatedGroup) {
+  function upsertLocalGroup(groupObj) {
+    if (!groupObj || !groupObj.code) return false;
+    groupObj.members = Array.isArray(groupObj.members) ? groupObj.members : [];
+    groupObj.tasks = Array.isArray(groupObj.tasks) ? groupObj.tasks : [];
     const store = loadStore();
-    const idx = store.groups.findIndex((g) => g.id === updatedGroup.id);
-    if (idx === -1) return false;
-    store.groups[idx] = updatedGroup;
+    const idx = store.groups.findIndex(
+      (g) => g.id === groupObj.id || g.code.toUpperCase() === groupObj.code.toUpperCase()
+    );
+    if (idx === -1) {
+      store.groups.push(groupObj);
+    } else {
+      store.groups[idx] = groupObj;
+    }
     return saveStore(store);
+  }
+
+  function updateGroup(updatedGroup) {
+    updatedGroup.updatedAt = new Date().toISOString();
+    const saved = upsertLocalGroup(updatedGroup);
+    if (saved) {
+      pushGroupToCloud(updatedGroup);
+    }
+    return saved;
+  }
+
+  // --- BULUT VERİTABANI (FIREBASE REALTIME DB) VE BAĞLANTI PAYLAŞIMI ---
+
+  function normalizeCloudUrl(url) {
+    if (!url) return "";
+    let clean = String(url).trim().replace(/\/+$/, "");
+    if (!clean.startsWith("http://") && !clean.startsWith("https://")) {
+      clean = "https://" + clean;
+    }
+    return clean;
+  }
+
+  function loadCloudDbUrl() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const dbFromQuery = params.get("db");
+      if (dbFromQuery) {
+        const clean = normalizeCloudUrl(dbFromQuery);
+        window.localStorage.setItem(CLOUD_URL_STORAGE_KEY, clean);
+        return clean;
+      }
+      const saved = window.localStorage.getItem(CLOUD_URL_STORAGE_KEY);
+      if (saved) return normalizeCloudUrl(saved);
+    } catch (_) {}
+    return normalizeCloudUrl(DEFAULT_CLOUD_DB_URL);
+  }
+
+  function updateSyncBannerUI() {
+    const badge = document.getElementById("syncModeBadge");
+    const text = document.getElementById("syncModeText");
+    const disclaimer = document.getElementById("shareDisclaimerText");
+    const input = document.getElementById("cloudDbUrlInput");
+
+    if (input) {
+      input.value = state.cloudDbUrl || "";
+    }
+
+    if (state.cloudDbUrl) {
+      if (badge) {
+        badge.textContent = "Canlı Bulut Senkronizasyonu Aktif";
+        badge.className = "badge badge-success";
+      }
+      if (text) {
+        text.innerHTML =
+          "Firebase veritabanı bağlı. Grup kodunu veya davet bağlantısını paylaştığınız arkadaşlarınızla <strong>tüm cihazlarda canlı</strong> olarak eşitlenir.";
+      }
+      if (disclaimer) {
+        disclaimer.innerHTML =
+          "🟢 <strong>Canlı Senkronizasyon Aktif:</strong> Arkadaşlarınız grup koduyla veya davet bağlantısıyla kendi cihazlarından katılabilir ve değişiklikleri anlık görebilir.";
+      }
+    } else {
+      if (badge) {
+        badge.textContent = "Bağlantı Paylaşım Modu";
+        badge.className = "badge badge-info";
+      }
+      if (text) {
+        text.innerHTML =
+          "Grubu arkadaşınıza göndermek için <strong>Davet Bağlantısını Kopyala</strong> butonunu kullanın veya anlık ortak çalışma için sağdan <strong>Firebase</strong> bağlayın.";
+      }
+      if (disclaimer) {
+        disclaimer.innerHTML =
+          "🔗 <strong>Davet Bağlantısını Kopyala</strong> butonuna bastığınızda grup verileri bağlantıya eklenir; arkadaşınız linki açtığında grup onda da görünür. (Anlık canlı eşitleme için üstten Firebase bağlayabilirsiniz.)";
+      }
+    }
+  }
+
+  async function pushGroupToCloud(group) {
+    if (!state.cloudDbUrl || !group || !group.code) return false;
+    try {
+      const endpoint = `${state.cloudDbUrl}/groups/${encodeURIComponent(group.code.toUpperCase())}.json`;
+      const res = await fetch(endpoint, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(group),
+      });
+      return res.ok;
+    } catch (err) {
+      console.warn("Bulut senkronizasyon yazma hatası:", err);
+      return false;
+    }
+  }
+
+  async function deleteGroupFromCloud(groupCode) {
+    if (!state.cloudDbUrl || !groupCode) return false;
+    try {
+      const endpoint = `${state.cloudDbUrl}/groups/${encodeURIComponent(groupCode.toUpperCase())}.json`;
+      const res = await fetch(endpoint, { method: "DELETE" });
+      return res.ok;
+    } catch (err) {
+      console.warn("Bulut silme hatası:", err);
+      return false;
+    }
+  }
+
+  async function fetchGroupFromCloud(groupCode) {
+    if (!state.cloudDbUrl || !groupCode) return null;
+    try {
+      const endpoint = `${state.cloudDbUrl}/groups/${encodeURIComponent(groupCode.toUpperCase())}.json`;
+      const res = await fetch(endpoint, { cache: "no-store" });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data || typeof data !== "object" || !data.code) return null;
+      data.members = Array.isArray(data.members) ? data.members : [];
+      data.tasks = Array.isArray(data.tasks) ? data.tasks : [];
+      upsertLocalGroup(data);
+      return data;
+    } catch (err) {
+      console.warn("Buluttan grup okuma hatası:", err);
+      return null;
+    }
+  }
+
+  async function syncAllGroupsWithCloud() {
+    if (!state.cloudDbUrl) return;
+    try {
+      const store = loadStore();
+      for (const grp of store.groups) {
+        await pushGroupToCloud(grp);
+      }
+      const endpoint = `${state.cloudDbUrl}/groups.json`;
+      const res = await fetch(endpoint, { cache: "no-store" });
+      if (!res.ok) return;
+      const allCloudGroups = await res.json();
+      if (allCloudGroups && typeof allCloudGroups === "object") {
+        Object.values(allCloudGroups).forEach((g) => {
+          if (g && g.code) {
+            upsertLocalGroup(g);
+          }
+        });
+      }
+      if (!state.currentGroupId) {
+        renderHomeView();
+      }
+    } catch (err) {
+      console.warn("Tüm grupları eşitleme hatası:", err);
+    }
+  }
+
+  function startLiveGroupSync(groupCode) {
+    stopLiveGroupSync();
+    if (!state.cloudDbUrl || !groupCode) return;
+
+    state.liveSyncTimer = setInterval(async () => {
+      if (!state.currentGroupId || !state.cloudDbUrl) return;
+      const localGroup = getGroupByIdOrCode(state.currentGroupId);
+      if (!localGroup) return;
+
+      const cloudGroup = await fetchGroupFromCloud(localGroup.code);
+      if (!cloudGroup) return;
+
+      const localJson = JSON.stringify({
+        members: localGroup.members,
+        tasks: localGroup.tasks,
+        title: localGroup.title,
+      });
+      const cloudJson = JSON.stringify({
+        members: cloudGroup.members,
+        tasks: cloudGroup.tasks,
+        title: cloudGroup.title,
+      });
+
+      if (localJson !== cloudJson) {
+        renderStats(cloudGroup);
+        renderMembersSection(cloudGroup);
+        renderTaskAssigneeOptions(cloudGroup);
+        renderTasksBoard(cloudGroup);
+      }
+    }, 3000);
+  }
+
+  function stopLiveGroupSync() {
+    if (state.liveSyncTimer) {
+      clearInterval(state.liveSyncTimer);
+      state.liveSyncTimer = null;
+    }
+  }
+
+  function encodeGroupSnapshot(group) {
+    try {
+      const jsonStr = JSON.stringify(group);
+      return btoa(encodeURIComponent(jsonStr));
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function importSnapshotFromUrl() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const snap = params.get("snap");
+      if (!snap) return null;
+      const jsonStr = decodeURIComponent(atob(snap));
+      const groupObj = JSON.parse(jsonStr);
+      if (groupObj && groupObj.code && groupObj.title) {
+        upsertLocalGroup(groupObj);
+        return groupObj;
+      }
+    } catch (err) {
+      console.warn("Bağlantıdan grup verisi okunamadı:", err);
+    }
+    return null;
   }
 
   // --- BİLDİRİM / UYARI SİSTEMİ ---
@@ -207,12 +431,14 @@
     window.location.hash = hash;
   }
 
-  function handleRoute() {
+  async function handleRoute() {
     const hash = (window.location.hash || "#home").replace(/^#/, "").trim();
 
     const viewHome = document.getElementById("viewHome");
     const viewCreate = document.getElementById("viewCreate");
     const viewDetail = document.getElementById("viewDetail");
+
+    stopLiveGroupSync();
 
     viewHome.classList.add("hidden");
     viewCreate.classList.add("hidden");
@@ -227,10 +453,19 @@
 
     if (hash.startsWith("group/")) {
       const codeOrId = decodeURIComponent(hash.slice("group/".length));
-      const group = getGroupByIdOrCode(codeOrId);
+      let group = getGroupByIdOrCode(codeOrId);
+
+      // Eğer bulut veritabanı bağlıysa güncel veriyi buluttan çek
+      if (state.cloudDbUrl) {
+        const cloudGroup = await fetchGroupFromCloud(codeOrId);
+        if (cloudGroup) {
+          group = cloudGroup;
+        }
+      }
+
       if (!group) {
         showAlert(
-          `"${codeOrId}" kodlu görev grubu bu tarayıcıda bulunamadı. (Veriler yalnızca oluşturulduğu tarayıcıda saklanır.)`,
+          `"${codeOrId}" kodlu görev grubu bulunamadı. Lütfen grup kodunu kontrol edin veya davet bağlantısını kullanın.`,
           "error"
         );
         window.location.hash = "#home";
@@ -243,6 +478,7 @@
       resetTaskForm();
       viewDetail.classList.remove("hidden");
       renderDetailView(group);
+      startLiveGroupSync(group.code);
       return;
     }
 
@@ -779,6 +1015,7 @@
 
     store.groups.push(newGroup);
     if (saveStore(store)) {
+      pushGroupToCloud(newGroup);
       titleInput.value = "";
       creatorInput.value = "";
       maxMembersInput.value = "4";
@@ -788,7 +1025,7 @@
     }
   }
 
-  function handleJoinByCode(e) {
+  async function handleJoinByCode(e) {
     e.preventDefault();
     const codeInput = document.getElementById("joinGroupCode");
     const memberInput = document.getElementById("joinMemberName");
@@ -805,11 +1042,18 @@
       return;
     }
 
-    const group = getGroupByIdOrCode(code);
+    let group = getGroupByIdOrCode(code);
+    if (state.cloudDbUrl) {
+      const cloudGroup = await fetchGroupFromCloud(code);
+      if (cloudGroup) {
+        group = cloudGroup;
+      }
+    }
+
     if (!group) {
       codeInput.classList.add("input-error");
       showAlert(
-        `"${code}" koduna sahip bir görev grubu bu tarayıcıda bulunamadı. (Uygulama verileri yalnızca oluşturulduğu tarayıcıda saklanır.)`,
+        `"${code}" koduna sahip bir görev grubu bulunamadı. Grup oluşturucusundan "Davet Bağlantısını Kopyala" butonuyla link göndermesini veya Firebase veritabanını bağlamasını isteyebilirsiniz.`,
         "error"
       );
       return;
@@ -1041,6 +1285,7 @@
     const store = loadStore();
     store.groups = store.groups.filter((g) => g.id !== group.id);
     if (saveStore(store)) {
+      deleteGroupFromCloud(group.code);
       showAlert(`"${group.title}" görev grubu silindi.`, "info");
       navigateTo("#home");
     }
@@ -1169,7 +1414,7 @@
         if (!group) return;
         copyToClipboard(
           group.code,
-          `Grup kodu (${group.code}) panoya kopyalandı. (Yalnızca bu tarayıcıdaki yerel veriler için geçerlidir.)`
+          `Grup kodu (${group.code}) panoya kopyalandı.`
         );
       });
     }
@@ -1179,16 +1424,80 @@
       btnCopyLink.addEventListener("click", () => {
         const group = getGroupByIdOrCode(state.currentGroupId);
         if (!group) return;
-        const baseUrl = window.location.href.split("#")[0];
-        const shareUrl = `${baseUrl}#group/${encodeURIComponent(group.code)}`;
+        const baseUrl = window.location.origin + window.location.pathname;
+        const queryParams = new URLSearchParams();
+        if (state.cloudDbUrl) {
+          queryParams.set("db", state.cloudDbUrl);
+        } else {
+          const snap = encodeGroupSnapshot(group);
+          if (snap) queryParams.set("snap", snap);
+        }
+        const queryString = queryParams.toString() ? `?${queryParams.toString()}` : "";
+        const shareUrl = `${baseUrl}${queryString}#group/${encodeURIComponent(group.code)}`;
         copyToClipboard(
           shareUrl,
-          "Grup bağlantısı kopyalandı. (Not: Sunucu kullanılmadığı için yalnızca bu tarayıcıda açıldığında mevcut verileri gösterir.)"
+          "Davet bağlantısı kopyalandı! Bu bağlantıyı arkadaşınıza gönderdiğinizde grup doğrudan onun ekranında da açılacaktır."
         );
       });
     }
 
-    handleRoute();
+    // Bulut Veritabanı (Firebase) Ayar Paneli Olayları
+    const btnToggleCloudConfig = document.getElementById("btnToggleCloudConfig");
+    const cloudConfigPanel = document.getElementById("cloudConfigPanel");
+    if (btnToggleCloudConfig && cloudConfigPanel) {
+      btnToggleCloudConfig.addEventListener("click", () => {
+        cloudConfigPanel.classList.toggle("hidden");
+      });
+    }
+
+    const cloudConfigForm = document.getElementById("cloudConfigForm");
+    if (cloudConfigForm) {
+      cloudConfigForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const input = document.getElementById("cloudDbUrlInput");
+        const url = normalizeCloudUrl(input ? input.value : "");
+        if (!url) {
+          showAlert("Lütfen geçerli bir Firebase Realtime Database URL'si girin.", "error");
+          return;
+        }
+        state.cloudDbUrl = url;
+        window.localStorage.setItem(CLOUD_URL_STORAGE_KEY, url);
+        updateSyncBannerUI();
+        if (cloudConfigPanel) cloudConfigPanel.classList.add("hidden");
+        showAlert("Firebase Realtime Database bağlandı ve gruplarınız eşitleniyor...", "success");
+        await syncAllGroupsWithCloud();
+        if (state.currentGroupId) {
+          const grp = getGroupByIdOrCode(state.currentGroupId);
+          if (grp) startLiveGroupSync(grp.code);
+        }
+      });
+    }
+
+    const btnClearCloudConfig = document.getElementById("btnClearCloudConfig");
+    if (btnClearCloudConfig) {
+      btnClearCloudConfig.addEventListener("click", () => {
+        stopLiveGroupSync();
+        state.cloudDbUrl = "";
+        window.localStorage.removeItem(CLOUD_URL_STORAGE_KEY);
+        updateSyncBannerUI();
+        showAlert("Bulut veritabanı bağlantısı kaldırıldı.", "info");
+      });
+    }
+
+    // Başlangıçta URL'den gelen bulut adresi veya grup verisini (snap) yükle
+    state.cloudDbUrl = loadCloudDbUrl();
+    const importedGroup = importSnapshotFromUrl();
+    updateSyncBannerUI();
+
+    if (state.cloudDbUrl) {
+      syncAllGroupsWithCloud();
+    }
+
+    if (importedGroup && !window.location.hash.startsWith("#group/")) {
+      window.location.hash = `#group/${encodeURIComponent(importedGroup.code)}`;
+    } else {
+      handleRoute();
+    }
   }
 
   if (document.readyState === "loading") {
