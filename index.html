@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GörevDağılımı — Basit Ekip Görev Yönetimi</title>
+  <meta name="description" content="GitHub Pages üzerinde çalışan, harici servis gerektirmeyen basit ve hızlı Türkçe ekip görev yönetimi uygulaması." />
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="#home" class="brand" id="navBrand">
+        <span class="brand-icon" aria-hidden="true">✓</span>
+        <div>
+          <span class="brand-title">GörevDağılımı</span>
+          <span class="brand-subtitle">Ekip Görev Yönetimi</span>
+        </div>
+      </a>
+      <nav class="main-nav" aria-label="Ana Menü">
+        <a href="#home" class="nav-link" data-nav="home">Ana Sayfa</a>
+        <a href="#create" class="nav-link btn btn-primary btn-sm" data-nav="create">+ Yeni Görev Grubu</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="storage-banner" role="region" aria-label="Veri Saklama Bilgilendirmesi">
+    <div class="container storage-banner-inner">
+      <span class="badge badge-info">Yerel Çalışma Modu</span>
+      <p>
+        Bu uygulama tamamen statik olarak çalışır ve hiçbir harici sunucu veya veritabanı kullanmaz.
+        Veriler yalnızca <strong>bu tarayıcıda (localStorage)</strong> saklanır; farklı cihazlar veya tarayıcılar arasında otomatik senkronizasyon yapılmaz.
+      </p>
+    </div>
+  </div>
+
+  <main class="container main-content">
+    <div id="alertContainer" aria-live="polite"></div>
+
+    <!-- 1. ANA SAYFA EKRANI -->
+    <section id="viewHome" class="view-section" aria-labelledby="homeHeading">
+      <div class="hero-card">
+        <div class="hero-text">
+          <h1 id="homeHeading">Ekip Görevlerini Kolayca Planlayın ve Takip Edin</h1>
+          <p>
+            Yeni bir görev grubu oluşturun, ekip arkadaşlarınızı gruba dahil edin, herkese bir veya birden fazla görev atayın ve ortak görev panosundan ilerlemeyi takip edin.
+          </p>
+          <div class="hero-actions">
+            <a href="#create" class="btn btn-primary">+ Yeni Görev Grubu Oluştur</a>
+            <button type="button" id="btnLoadSample" class="btn btn-secondary">Örnek Görev Grubu Yükle</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="home-grid">
+        <!-- Grup Koduyla Katılım Alanı -->
+        <div class="card">
+          <div class="card-header">
+            <h2>Grup Koduyla Katıl</h2>
+            <p class="text-muted">Bu tarayıcıda oluşturulmuş bir görev grubuna grup kodu ile katılın veya grubu açın.</p>
+          </div>
+          <form id="joinByCodeForm" class="form-stack" novalidate>
+            <div class="form-group">
+              <label for="joinGroupCode">Grup Kodu <span class="required">*</span></label>
+              <input
+                type="text"
+                id="joinGroupCode"
+                name="groupCode"
+                placeholder="Örn: GRUP-4829"
+                autocomplete="off"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="joinMemberName">Adınız (Ekip Üyesi Olarak Katılmak İçin)</label>
+              <input
+                type="text"
+                id="joinMemberName"
+                name="memberName"
+                placeholder="Örn: Ayşe (Sadece görüntülemek için boş bırakabilirsiniz)"
+                autocomplete="off"
+              />
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Gruba Git / Katıl</button>
+            <p class="form-hint">
+              <strong>Not:</strong> Yalnızca istemci tarafında çalışan bu uygulamada grup kodu ve paylaşım bağlantısı, aynı tarayıcıdaki verilere erişir. Başka cihazlardaki verileri otomatik senkronize etmez.
+            </p>
+          </form>
+        </div>
+
+        <!-- Mevcut Görev Grupları -->
+        <div class="card">
+          <div class="card-header card-header-flex">
+            <div>
+              <h2>Mevcut Görev Grupları</h2>
+              <p class="text-muted">Bu tarayıcıda kayıtlı görev gruplarınız</p>
+            </div>
+            <span id="groupCountBadge" class="badge badge-neutral">0 Grup</span>
+          </div>
+          <div id="groupsListContainer" class="groups-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. GÖREV GRUBU OLUŞTURMA SAYFASI -->
+    <section id="viewCreate" class="view-section hidden" aria-labelledby="createHeading">
+      <div class="page-nav">
+        <a href="#home" class="btn btn-ghost btn-sm">← Ana Sayfaya Dön</a>
+      </div>
+
+      <div class="card form-card">
+        <div class="card-header">
+          <h1 id="createHeading">Yeni Görev Grubu Oluştur</h1>
+          <p class="text-muted">Grubunuzun başlığını ve kendiniz dışında katılabilecek ekip arkadaşı kontenjanını belirleyin.</p>
+        </div>
+
+        <form id="createGroupForm" class="form-stack" novalidate>
+          <div class="form-group">
+            <label for="groupTitleInput">Görev Grubu Başlığı <span class="required">*</span></label>
+            <input
+              type="text"
+              id="groupTitleInput"
+              name="title"
+              placeholder="Örn: Web Projesi Sprint 1"
+              maxlength="100"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="creatorNameInput">Oluşturucu Adı <span class="required">*</span></label>
+            <input
+              type="text"
+              id="creatorNameInput"
+              name="creatorName"
+              placeholder="Örn: Ahmet (Proje Yöneticisi)"
+              maxlength="60"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="maxMembersInput">Kendiniz Dışında Katılabilecek Kişi Sayısı <span class="required">*</span></label>
+            <input
+              type="number"
+              id="maxMembersInput"
+              name="maxMembers"
+              min="1"
+              max="50"
+              value="4"
+              required
+            />
+            <span class="form-hint">Gruba oluşturucu haricinde en fazla kaç ekip arkadaşının katılabileceğini belirtir (1 - 50).</span>
+          </div>
+
+          <div class="form-actions">
+            <a href="#home" class="btn btn-secondary">İptal</a>
+            <button type="submit" class="btn btn-primary">Görev Grubunu Oluştur</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- 3. GÖREV GRUBU DETAY SAYFASI -->
+    <section id="viewDetail" class="view-section hidden" aria-labelledby="detailGroupTitle">
+      <div class="page-nav page-nav-between">
+        <a href="#home" class="btn btn-ghost btn-sm">← Tüm Görev Grupları</a>
+        <button type="button" id="btnDeleteGroup" class="btn btn-danger-outline btn-sm">Grubu Sil</button>
+      </div>
+
+      <!-- Grup Üst Bilgisi ve Paylaşım Kodu -->
+      <div class="card detail-header-card">
+        <div class="detail-header-top">
+          <div>
+            <div class="detail-badges">
+              <span id="detailGroupCodeBadge" class="badge badge-code">GRUP-0000</span>
+              <span id="detailCreatedAt" class="text-muted text-sm"></span>
+            </div>
+            <h1 id="detailGroupTitle" class="detail-title">Görev Grubu Başlığı</h1>
+            <p class="detail-creator">
+              <strong>Oluşturucu:</strong> <span id="detailCreatorName">-</span>
+            </p>
+          </div>
+
+          <div class="share-box">
+            <div class="share-box-row">
+              <div>
+                <span class="share-label">Grup Kodu:</span>
+                <code id="shareCodeText" class="share-code">GRUP-0000</code>
+              </div>
+              <button type="button" id="btnCopyCode" class="btn btn-secondary btn-xs">Kodu Kopyala</button>
+              <button type="button" id="btnCopyLink" class="btn btn-secondary btn-xs">Bağlantıyı Kopyala</button>
+            </div>
+            <p class="share-disclaimer">
+              ⚠️ Bu bağlantı ve grup kodu yalnızca <strong>aynı tarayıcıdaki</strong> yerel veriler için geçerlidir. Sunucu kullanılmadığı için farklı cihazlar arasında otomatik veri eşitlemesi yapılmaz.
+            </p>
+          </div>
+        </div>
+
+        <!-- Yerel Profil / Aktif Kullanıcı Seçimi -->
+        <div class="active-user-bar">
+          <div class="active-user-info">
+            <label for="activeUserSelect"><strong>Aktif Kullanıcı Görünümü (Yerel Profil):</strong></label>
+            <select id="activeUserSelect" class="select-compact"></select>
+          </div>
+          <span class="active-user-note">
+            Harici kimlik doğrulama sunucusu kullanılmadığından, aynı tarayıcıda oluşturucu veya ekip üyesi perspektifini buradan seçebilirsiniz.
+          </span>
+        </div>
+      </div>
+
+      <!-- Özet İstatistikler -->
+      <div class="stats-grid" aria-label="Görev İstatistikleri">
+        <div class="stat-card">
+          <span class="stat-label">Toplam Görev</span>
+          <strong id="statTotalTasks" class="stat-value">0</strong>
+        </div>
+        <div class="stat-card stat-waiting">
+          <span class="stat-label">Bekliyor</span>
+          <strong id="statPendingTasks" class="stat-value">0</strong>
+        </div>
+        <div class="stat-card stat-progress">
+          <span class="stat-label">Devam Ediyor</span>
+          <strong id="statInProgressTasks" class="stat-value">0</strong>
+        </div>
+        <div class="stat-card stat-done">
+          <span class="stat-label">Tamamlandı</span>
+          <strong id="statCompletedTasks" class="stat-value">0</strong>
+        </div>
+      </div>
+
+      <div class="detail-grid">
+        <!-- Sol Sütun: Ekip Üyeleri ve Görev Atama Alanı -->
+        <div class="detail-sidebar">
+          <!-- Ekip Üyeleri ve Katılım -->
+          <div class="card">
+            <div class="card-header card-header-flex">
+              <div>
+                <h2>Ekip Üyeleri</h2>
+                <p class="text-muted">Gruba katılan ekip arkadaşları</p>
+              </div>
+              <span id="memberQuotaBadge" class="badge badge-info">0 / 0 Katılımcı</span>
+            </div>
+
+            <ul id="membersList" class="members-list" aria-label="Ekip Üyeleri Listesi"></ul>
+
+            <form id="addMemberForm" class="form-inline-box" novalidate>
+              <label for="newMemberNameInput" class="form-sub-label">Gruba Yeni Ekip Arkadaşı Ekle / Katıl</label>
+              <div class="input-row">
+                <input
+                  type="text"
+                  id="newMemberNameInput"
+                  placeholder="Ekip üyesi adı..."
+                  maxlength="60"
+                  required
+                />
+                <button type="submit" id="btnAddMember" class="btn btn-primary btn-sm">Katıl / Ekle</button>
+              </div>
+              <span id="memberQuotaHint" class="form-hint"></span>
+            </form>
+          </div>
+
+          <!-- Görev Atama / Düzenleme Alanı -->
+          <div class="card">
+            <div class="card-header">
+              <h2 id="taskFormHeading">Görev Atama Alanı</h2>
+              <p class="text-muted">Ekip üyelerine bir veya birden fazla görev atayın.</p>
+            </div>
+
+            <form id="taskForm" class="form-stack" novalidate>
+              <input type="hidden" id="editTaskId" value="" />
+
+              <div class="form-group">
+                <label for="taskTitleInput">Görev Başlığı <span class="required">*</span></label>
+                <input
+                  type="text"
+                  id="taskTitleInput"
+                  placeholder="Örn: Veritabanı şemasını tasarla"
+                  maxlength="140"
+                  required
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="taskDescInput">Açıklama (İsteğe Bağlı)</label>
+                <textarea
+                  id="taskDescInput"
+                  rows="3"
+                  placeholder="Görevle ilgili ek ayrıntılar veya teslim kriterleri..."
+                  maxlength="500"
+                ></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="taskAssigneeSelect">Atanacak Ekip Üyesi <span class="required">*</span></label>
+                <select id="taskAssigneeSelect" required></select>
+              </div>
+
+              <div class="form-group" id="taskStatusGroup">
+                <label for="taskStatusSelect">Görev Durumu</label>
+                <select id="taskStatusSelect">
+                  <option value="Bekliyor">Bekliyor</option>
+                  <option value="Devam Ediyor">Devam Ediyor</option>
+                  <option value="Tamamlandı">Tamamlandı</option>
+                </select>
+              </div>
+
+              <div class="form-actions">
+                <button type="button" id="btnCancelEditTask" class="btn btn-secondary hidden">Düzenlemeyi İptal Et</button>
+                <button type="submit" id="btnSubmitTask" class="btn btn-primary btn-block">+ Görev Ekle</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Sağ Sütun: Ortak Görev Panosu -->
+        <div class="detail-board">
+          <div class="card">
+            <div class="card-header board-header">
+              <div>
+                <h2>Ortak Görev Panosu</h2>
+                <p class="text-muted">Kimin hangi görevden sorumlu olduğunu ve tamamlanma durumlarını takip edin.</p>
+              </div>
+
+              <div class="view-toggle" role="group" aria-label="Görünüm Seçimi">
+                <button type="button" id="btnViewTable" class="btn btn-xs btn-toggle active">Tablo</button>
+                <button type="button" id="btnViewCards" class="btn btn-xs btn-toggle">Kartlar</button>
+              </div>
+            </div>
+
+            <!-- Filtre Barı -->
+            <div class="filter-bar">
+              <div class="filter-group">
+                <label for="filterAssignee">Sorumlu:</label>
+                <select id="filterAssignee" class="select-compact">
+                  <option value="ALL">Tüm Ekip</option>
+                  <option value="ACTIVE_USER">Bana Atanan Görevler</option>
+                </select>
+              </div>
+
+              <div class="filter-group">
+                <label for="filterStatus">Durum:</label>
+                <select id="filterStatus" class="select-compact">
+                  <option value="ALL">Tüm Durumlar</option>
+                  <option value="Bekliyor">Bekliyor</option>
+                  <option value="Devam Ediyor">Devam Ediyor</option>
+                  <option value="Tamamlandı">Tamamlandı</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Görev Listesi Alanı (Tablo veya Kart) -->
+            <div id="tasksBoardContainer"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p>
+        <strong>GörevDağılımı</strong> — GitHub Pages uyumlu, harici bağımlılıksız yerel ekip görev yönetimi uygulaması.
+      </p>
+    </div>
+  </footer>
+
+  <script src="./js/app.js"></script>
+</body>
+</html>

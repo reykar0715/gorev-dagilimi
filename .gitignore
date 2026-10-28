@@ -1,0 +1,8 @@
+# Proje belgeleri
+README.md
+
+# İşletim sistemi ve editör dosyaları
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

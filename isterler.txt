@@ -1,0 +1,228 @@
+# PROJE PROMPTU — GitHub Üzerinde Çalışan Basit Ekip Görev Yönetimi Web Sitesi
+
+## 1. Projenin Amacı
+
+Basit, hızlı, kullanıcı dostu ve Türkçe bir ekip görev yönetimi web sitesi geliştir.
+
+Uygulamada bir kullanıcı görev grubu oluşturabilmeli, ekip arkadaşları bu gruba katılabilmeli ve oluşturucu ekip üyelerine bir veya birden fazla görev atayabilmelidir. Ekipteki herkes ortak görev panosunu görüntüleyerek kimin hangi görevden sorumlu olduğunu ve görevlerin tamamlanma durumunu görebilmelidir.
+
+Projenin en önemli teknik kısıtı, GitHub üzerinde yayımlanabilmesi ve harici servis bağımlılıklarının mümkün olduğunca tamamen ortadan kaldırılmasıdır.
+
+## 2. Zorunlu Teknik Kısıtlar
+
+Aşağıdaki kurallar kesinlikle dikkate alınmalıdır.
+
+### Barındırma
+- Web sitesi GitHub Pages üzerinde yayımlanabilecek şekilde hazırlanmalıdır.
+- Uygulama GitHub deposundan yayımlanmalı ve GitHub Pages üzerinden erişilebilir olmalıdır.
+- Uygulamanın çalışması için ayrıca bir sunucu kiralanmamalıdır.
+- VPS, özel sunucu, Docker sunucusu veya sürekli çalışan bir backend kullanılmamalıdır.
+- Proje, statik web sitesi mimarisiyle çalışmalıdır.
+
+### Harici Servisler
+- Firebase, Supabase, Appwrite, MongoDB Atlas, Neon veya benzeri harici veritabanı servisleri kullanılmamalıdır.
+- Harici API servisleri kullanılmamalıdır.
+- Üçüncü taraf kimlik doğrulama servisleri kullanılmamalıdır.
+- Harici CDN üzerinden JavaScript veya CSS yüklenmemelidir.
+- Google Fonts gibi harici font servislerine bağımlılık oluşturulmamalıdır.
+- Harici görsel, analiz, reklam veya takip servisleri kullanılmamalıdır.
+- Çalışma zamanında internet üzerinden başka kaynaklara istek gönderilmesini gerektiren bağımlılıklar eklenmemelidir.
+- Gerekli tüm HTML, CSS, JavaScript, ikon ve diğer statik dosyalar GitHub deposunda bulunmalıdır.
+- Projenin çalışması için GitHub Pages dışında bir servise bağlantı kurulması zorunlu olmamalıdır.
+
+### Teknoloji Tercihi
+- HTML5, CSS3 ve JavaScript kullan.
+- Gerekli olmadıkça framework kullanma.
+- React, Vue veya benzeri bir framework tercih edilirse uygulama statik olarak derlenebilmeli ve yayımlanan dosyalar GitHub Pages üzerinde çalışmalıdır.
+- Node.js veya başka bir araç yalnızca geliştirme ve derleme sırasında gerekiyorsa kullanılabilir; yayımlanan uygulamanın çalışması için bir sunucu gerekmemelidir.
+- Gereksiz kütüphanelerden kaçın.
+
+## 3. Önemli Veri Saklama ve Çok Kullanıcılı Çalışma Kuralı
+
+GitHub Pages sunucu tarafında kod çalıştırmaz ve kendi başına ortak, değiştirilebilir bir veritabanı sağlamaz.
+
+Bu nedenle uygulamayı geliştirirken aşağıdaki ayrımı dikkate al:
+
+- `localStorage` ve `IndexedDB` gibi tarayıcı içi depolama yöntemleri yalnızca ilgili kullanıcının tarayıcısında veri saklar.
+- Tarayıcı içi depolama, farklı cihazlardaki kullanıcıların ortak verileri otomatik olarak paylaşmasını sağlamaz.
+- GitHub deposundaki dosyaları doğrudan uygulama veritabanı gibi kullanmaya çalışma.
+- GitHub tokenlarını veya erişim anahtarlarını istemci tarafı koduna koyma.
+- Kullanıcıya gerçek zamanlı ve merkezi veri paylaşımı varmış gibi davranma.
+
+Öncelikle bu teknik kısıtlarla uygulanabilecek en uygun çözümü belirle.
+
+**Birinci tercih:** Hiçbir harici servis kullanmadan çalışan, GitHub Pages üzerinde yayımlanabilen bir MVP geliştir. Veriler tarayıcıda saklansın. Aynı tarayıcıda görev grubu oluşturma, görev ekleme, görev atama ve görev durumlarını takip etme işlevleri çalışsın.
+
+Görev gruplarına katılım için paylaşılabilir bağlantı veya grup kodu arayüzü oluşturulabilir; ancak yalnızca istemci tarafında çalışan bir uygulamada bu bağlantının başka cihazlarda ortak verileri otomatik olarak senkronize etmeyeceği açıkça belirtilmelidir.
+
+Farklı kullanıcıların farklı cihazlardan ortak verileri görmesi ve değiştirmesi zorunluysa bu gereksinimin yalnızca GitHub Pages ve tarayıcı depolamasıyla tam olarak karşılanamayacağını belirt. Bu durumda kullanıcıdan izin almadan harici servis ekleme. Önce teknik sınırlamayı açıkla ve mevcut kısıtlarla geliştirilebilecek en iyi çözümü sun.
+
+## 4. Kullanıcı İşlevleri
+
+### Görev Grubu Oluşturucu
+
+Kullanıcı yeni bir görev grubu oluşturabilmelidir.
+
+Oluşturucu:
+- Görev grubuna başlık belirleyebilmelidir.
+- Kendisi dışında kaç ekip arkadaşının katılabileceğini seçebilmelidir.
+- Görev grubunun ayrıntılarını görüntüleyebilmelidir.
+- Katılan ekip arkadaşlarının listesini görebilmelidir.
+- Ekip üyelerine bir veya birden fazla görev atayabilmelidir.
+- Görev başlıklarını ve isteğe bağlı açıklamaları belirleyebilmelidir.
+- Görevlerin tamamlanma durumunu takip edebilmelidir.
+
+### Ekip Arkadaşları
+
+Ekip arkadaşları:
+- Görev gruplarını görüntüleyebilmelidir.
+- Görev grubuna katılabilmelidir.
+- Ekip üyelerini görebilmelidir.
+- Kendilerine atanmış görevleri görüntüleyebilmelidir.
+- Ortak görev panosunda diğer görevleri ve sorumlularını görebilmelidir.
+- Kendilerine atanmış görevlerin durumunu güncelleyebilmelidir.
+
+Harici bir sunucu olmadan gerçek çok kullanıcılı kimlik doğrulama ve yetkilendirme güvenli biçimde sağlanamayacağı için, prototipte kullanıcı seçimi veya yerel profil gibi basit bir yöntem kullanılabilir. Bu mekanizma güvenli hesap sistemi olarak sunulmamalıdır.
+
+## 5. Görev Grubunun İşleyişi
+
+1. Kullanıcı ana sayfadan yeni görev grubu oluşturur.
+2. Görev grubuna bir başlık belirler.
+3. Kendisi dışında katılabilecek kişi sayısını seçer.
+4. Sistem bir grup kodu veya paylaşılabilir bağlantı üretir.
+5. Kullanıcılar grup katılım ekranını kullanır.
+6. Oluşturucu ekip üyelerini görüntüler.
+7. Oluşturucu her ekip üyesine bir veya birden fazla görev atar.
+8. Görevler ortak görev panosunda listelenir.
+9. Görev durumları güncellenebilir.
+10. Kullanıcılar aynı tarayıcıdaki veriler üzerinden görevlerin güncel durumlarını takip edebilir.
+
+Yukarıdaki adımların tamamı arayüzde uygulanmalıdır. Farklı cihazlar arasında senkronizasyon gerektiren adımların harici servis olmadan gerçek anlamda çalışmayacağı kullanıcıya açıkça belirtilmelidir.
+
+## 6. Görev Yönetimi
+
+Her görev aşağıdaki alanlara sahip olmalıdır:
+
+- Görev başlığı
+- İsteğe bağlı açıklama
+- Atanan ekip üyesi
+- Görev durumu
+- Oluşturulma tarihi
+
+Görev durumları:
+- Bekliyor
+- Devam Ediyor
+- Tamamlandı
+
+Bir kişiye birden fazla görev atanabilmelidir. Görevler eklenebilmeli, düzenlenebilmeli ve gerekli durumlarda silinebilmelidir.
+
+Örnek görev tablosu:
+
+| Görev | Sorumlu | Durum |
+|---|---|---|
+| Veritabanı şemasını tasarla | Ahmet | Tamamlandı |
+| Giriş ekranını oluştur | Ayşe | Devam Ediyor |
+| API bağlantılarını hazırla | Mehmet | Bekliyor |
+| Testleri yaz | Ayşe | Bekliyor |
+
+Bu örnek veriler yalnızca arayüzü göstermek için kullanılabilir. Uygulamanın asıl verileri kullanıcı işlemlerinden oluşturulmalıdır.
+
+## 7. Sayfalar
+
+### Ana Sayfa
+- Uygulama adı ve kısa açıklaması
+- Yeni görev grubu oluşturma butonu
+- Mevcut görev grupları
+- Grup koduyla katılım alanı
+
+### Görev Grubu Oluşturma Sayfası
+- Görev grubu başlığı
+- Katılabilecek kişi sayısı
+- Oluştur butonu
+
+### Görev Grubu Detay Sayfası
+- Görev grubu başlığı
+- Oluşturucu bilgisi
+- Ekip üyeleri
+- Görev atama alanı
+- Ortak görev panosu
+- Görev durumları
+- Katılım bağlantısı veya grup kodu
+
+### Görev Atama Alanı
+- Görev başlığı
+- İsteğe bağlı açıklama
+- Atanacak ekip üyesi
+- Görev ekleme butonu
+
+## 8. Tasarım
+
+- Tamamen Türkçe bir arayüz oluştur.
+- Modern, sade ve profesyonel görünüm kullan.
+- Bilgisayar, tablet ve telefon ekranlarına uyumlu tasarla.
+- Görev durumlarını anlaşılır renklerle göster.
+- Görevleri kartlar veya okunabilir bir tablo şeklinde sun.
+- Boş listeler, hatalı girişler ve tamamlanmış görevler için uygun arayüz durumları oluştur.
+- Tüm stilleri yerel CSS dosyalarında tut.
+- Harici font veya ikon servisleri kullanma.
+- Gereksiz animasyonlardan kaçın.
+
+## 9. Veri Yönetimi
+
+- Verileri uygun bir JavaScript veri modeliyle düzenle.
+- Tarayıcıda kalıcı depolama için `localStorage` kullan.
+- Sayfa yenilendiğinde aynı tarayıcıda oluşturulmuş görev grupları ve görevler korunmalıdır.
+- Veri okuma ve yazma işlemlerinde hata kontrolleri ekle.
+- Depolanan veriler için bir sürüm alanı kullanılması tercih edilir.
+- Görev ve grup kimliklerini benzersiz şekilde üret.
+- Katılımcı sayısını ve zorunlu alanları kontrol et.
+- Boş görev başlıklarının eklenmesini engelle.
+- Verilerin başka tarayıcılara veya cihazlara otomatik olarak aktarılmadığını uygulama dokümantasyonunda belirt.
+
+## 10. GitHub Üzerinde Yayımlama
+
+Projeyi GitHub Pages üzerinde çalışacak şekilde hazırla.
+
+- Gerekli tüm kaynak dosyaları GitHub deposunda bulunsun.
+- Projeyi depo alt yolunda yayımlama ihtimalini dikkate al.
+- Dosya yollarını GitHub Pages ile uyumlu düzenle.
+- Sunucu tarafı yönlendirme gerektiren bir yapı kullanma.
+- Uygulamayı GitHub Pages üzerinden açıldığında çalışacak şekilde test et.
+- GitHub Actions gerekiyorsa yalnızca yayımlama ve derleme işlemleri için kullan.
+- Çalışma zamanında üçüncü taraf servislere bağımlılık oluşturma.
+- `README.md` dosyasına kurulum, yerel çalıştırma ve GitHub Pages yayımlama adımlarını yaz.
+- Gerekli dosyaları ve yapılandırmaları hazırla.
+- Gerçekten yayımlama yetkisi ve erişimi varsa yayımlama işlemini gerçekleştir; aksi durumda kullanıcıya gerekli adımları açıkça belirt.
+
+## 11. Tamamlanma Kriterleri
+
+Aşağıdaki kriterleri kontrol et:
+
+1. Uygulama GitHub Pages üzerinde açılabiliyor.
+2. Ana sayfa ve görev grubu ekranları çalışıyor.
+3. Görev grubu oluşturulabiliyor.
+4. Ekip üyesi eklenebiliyor.
+5. Bir kişiye birden fazla görev atanabiliyor.
+6. Görevlerin sorumluları ve durumları ortak panoda görüntülenebiliyor.
+7. Görev durumları değiştirilebiliyor.
+8. Sayfa yenilendiğinde veriler aynı tarayıcıda korunuyor.
+9. Uygulama çalışma zamanında harici servislerden veri çekmiyor.
+10. Harici API anahtarı veya gizli erişim anahtarı gerekmiyor.
+11. Teknik sınırlamalar README dosyasında açıklanıyor.
+12. Farklı cihazlar arasında senkronizasyon olmadığı durumlarda bu özellik varmış gibi gösterilmiyor.
+
+## 12. Son Talimat
+
+Önce proje klasörünü incele ve mevcut yapıyı değerlendir. Ardından bu gereksinimlere uygun bir uygulama planı çıkar ve uygulamayı geliştir.
+
+Öncelik sırası:
+1. GitHub Pages uyumluluğu
+2. Harici servislere bağımlı olmama
+3. Çalışan görev grubu oluşturma
+4. Ekip üyesi ve görev atama
+5. Ortak görev panosu
+6. Tarayıcıda kalıcı veri saklama
+7. Sade ve responsive tasarım
+8. Testler ve dokümantasyon
+
+Gereksiz özellikler ekleme. Önce çalışan, basit ve anlaşılır bir MVP oluştur. Teknik kısıtları aşmak için izinsiz biçimde harici bir backend, veritabanı veya API ekleme.
